@@ -1,0 +1,10 @@
+[env]
+# No CUDA toolkit needed on the host: tell cudarc which CUDA API to bind
+# instead of asking nvcc. Needs a driver that supports CUDA 12.9 (575 or
+# newer; tested with 580, which supports up to 13.0).
+CUDARC_CUDA_VERSION = "12090"
+
+[net]
+# Use the git CLI: the laptop rewrites GitHub https URLs to ssh, which
+# cargo's built-in git cannot authenticate.
+git-fetch-with-cli = true

@@ -1,0 +1,27 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Shows a winstream stream in a window (runs on the machine where the windows show up)"
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+proto.workspace = true
+quinn.workspace = true
+rustls.workspace = true
+tokio.workspace = true
+ffmpeg-next = "9"
+winit = "0.30"
+bytemuck = "1"
+font8x8 = "0.3"
+bytes = "1"
+libpulse-binding = "2"
+libpulse-simple-binding = "2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+glutin = "0.32"
+glutin-winit = "0.5"
+glow = "0.16"
+raw-window-handle = "0.6"

@@ -1,0 +1,29 @@
+# Copy to ~/.config/winstream/config.toml.
+# Host: the machine with the NVIDIA GPU.
+
+[host]
+ssh = "desktop"       # REQUIRED: ssh destination (Host alias or user@addr)
+dir = "~/winstream" # code is copied and built here
+port = 4433
+wake = ""             # command to wake it; off when empty
+authority = ""        # server's authority file; default /run/user/{uid}/.WinstreamAuthority-{port}
+
+[client]
+server = "" # address, or a list tried in order (e.g. ["desktop-lan", "desktop"]); default: the HostName ssh uses
+
+[ssh]
+key = ""          # key to unlock if the agent lacks it; off when empty
+agent_socket = "" # default: $SSH_AUTH_SOCK
+
+[mount]
+path = "" # sshfs mount of the host's home; off when empty
+
+[stream]
+fps = 60        # frames per second apps are asked for and the encoder is set to
+latency_ms = 15 # time from encoded to shown (network + decode + show); the bitrate adapts to stay under it
+start_bits_per_pixel = 0.08 # bitrate a new stream starts at
+max_bits_per_pixel = 1.0    # highest bitrate (1.0 is 221 Mbit/s at 2560x1440, 60 fps)
+min_mbit = 2                # lowest bitrate, in Mbit/s
+
+[terminal]
+command = ["xterm", "-hold", "-T", "{title}", "-e"] # for "Show terminals"

@@ -1,0 +1,26 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Headless Wayland compositor that streams app windows (runs on the host, the machine with the NVIDIA GPU)"
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender = "0.2"
+smithay.workspace = true
+proto.workspace = true
+quinn.workspace = true
+rustls.workspace = true
+tokio.workspace = true
+rcgen = "0.14"
+bytes = "1"
+libc = "0.2"
+libpulse-binding = "2"
+libpulse-simple-binding = "2"
+# Direct NVENC (API 12.1): ffmpeg's h264_nvenc needs a newer driver than
+# Pascal cards can run (Pascal tops out at driver 580, NVENC API 13.0).
+nvidia-video-codec-sdk = "0.4"
+cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "cuda-version-from-build-system", "dynamic-loading"] }

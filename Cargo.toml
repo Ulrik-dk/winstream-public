@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["proto", "server", "client"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+proto = { path = "proto", features = ["opus", "net"] }
+quinn = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
+
+# Pinned to a git commit so the API matches the examples we read.
+[workspace.dependencies.smithay]
+git = "https://github.com/Smithay/smithay.git"
+rev = "65aa86f"
+default-features = false
+features = ["backend_gbm", "backend_egl", "renderer_gl", "wayland_frontend", "desktop", "xwayland"]
+
+# NVENC crate with Session::reconfigure: PR #30 plus our CI fix (ZhaoXiangXML
+# PR #1), until it is merged and released.
+[patch.crates-io]
+nvidia-video-codec-sdk = { git = "https://github.com/Ulrik-dk/nvidia-video-codec-sdk", rev = "5ca4fa52e77769073b4d829cb97e3dd184f35b58" }
+
+[profile.release]
+debug = 1
