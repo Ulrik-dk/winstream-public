@@ -1,7 +1,5 @@
 # winstream
 
-Winstream streams individual GPU-accelerated applications from a remote Linux machine directly into your local desktop. 
-
 Window streaming for Linux apps (very relevant for games). Apps render on
 one machine's GPU (the **host**); each of their windows appears on another
 machine (the **client**) as a native window, streamed as low-latency video
