@@ -107,6 +107,7 @@ fn main() -> Result<()> {
         by_winit: HashMap::new(),
         info: HashMap::new(),
         keys_down: HashSet::new(),
+        grab_released: false,
         buttons_down: HashSet::new(),
         grab: None,
         focused: None,
@@ -151,6 +152,10 @@ fn local_keymap() -> Control {
 }
 
 const BTN_MIDDLE: u32 = 0x112;
+const KEY_LEFTCTRL: u32 = 29;
+const KEY_RIGHTCTRL: u32 = 97;
+const KEY_LEFTALT: u32 = 56;
+const KEY_RIGHTALT: u32 = 100;
 
 fn evdev_button(button: MouseButton) -> Option<u32> {
     Some(match button {
@@ -236,6 +241,7 @@ struct App {
     keys_down: HashSet<u32>,
     buttons_down: HashSet<u32>,
     grab: Option<(u32, PointerGrab)>,
+    grab_released: bool,
     focused: Option<u32>,
     reactivate_on_click: Option<u32>,
     display_sent: Option<(u32, u32, u32)>,
@@ -411,6 +417,17 @@ impl ApplicationHandler<UserEvent> for App {
                     return;
                 }
                 self.send(Control::Key { code, pressed });
+                let ctrl = [KEY_LEFTCTRL, KEY_RIGHTCTRL]
+                    .iter()
+                    .any(|k| self.keys_down.contains(k));
+                let alt = [KEY_LEFTALT, KEY_RIGHTALT]
+                    .iter()
+                    .any(|k| self.keys_down.contains(k));
+                if pressed && ctrl && alt && self.grab.is_some() && !self.grab_released {
+                    info!("pointer released (Ctrl+Alt), click the window to grab it again");
+                    self.grab_released = true;
+                    self.apply_grab();
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if self.grab == Some((id, PointerGrab::Locked)) {
@@ -431,6 +448,7 @@ impl ApplicationHandler<UserEvent> for App {
                     self.send(Control::Focus { window: id });
                 }
                 if pressed && self.focused == Some(id) && self.grab.is_some_and(|(g, _)| g == id) {
+                    self.grab_released = false;
                     self.apply_grab();
                 }
                 if pressed && button == BTN_MIDDLE {
@@ -519,7 +537,9 @@ impl App {
     fn apply_grab(&mut self) {
         for (&id, w) in &self.windows {
             let mode = match self.grab {
-                Some((g, mode)) if g == id && self.focused == Some(id) => mode,
+                Some((g, mode)) if g == id && self.focused == Some(id) && !self.grab_released => {
+                    mode
+                }
                 _ => PointerGrab::None,
             };
             let (grab, visible) = match mode {
