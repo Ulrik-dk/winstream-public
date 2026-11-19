@@ -5,7 +5,9 @@ whether the stage is done ("OK"), being checked or run, or failed.
 
 Settings (host, wake command, mount, ssh key, terminal) come from the
 configuration file, see winstream_config.py and config.example.toml. With none,
-the launcher copies the example there and says so.
+the launcher copies the example there and says so. "Edit config" opens the
+file in $VISUAL, $EDITOR or nano, in terminal.command; changes apply after
+a restart.
 
 The apps are a column on the right, kept in apps.json next to the
 configuration: "+ Add app" adds one, ✎ edits or deletes it (name, folder
@@ -26,6 +28,7 @@ The server and the client run in the background (output in the log pane
 and ~/.local/state/winstream/launcher-*.log); tick "Show terminals
 (debug)" to run them in terminals instead. "Show overlay" shows or hides
 the fps/latency text in the remote windows, also while they're open.
+"Show logs" shows or hides the log pane.
 The commands (HOST is host.ssh, DIR host.dir, ADDR client.server):
     ssh HOST 'cd DIR && ./target/release/server stream'
     ./target/release/client --ssh HOST ADDR
@@ -238,9 +241,9 @@ class Launcher:
                                          command=lambda: self.start(self.start_session))
         self.session_button.grid(row=0, column=0, sticky="w", pady=(0, 8))
 
-        self.stages = [Stage(f"Wake {HOST}", self.check_awake, self.wake)]
+        self.stages = [Stage("Wake host", self.check_awake, self.wake)]
         if MOUNT:
-            self.stages.append(Stage("Mount home", self.check_mounted, self.mount))
+            self.stages.append(Stage("Mount host", self.check_mounted, self.mount))
         self.stages += [
             Stage("Build server", self.check_server_built, self.build_server),
             Stage("Build client", self.check_client_built, self.build_client),
@@ -259,11 +262,15 @@ class Launcher:
         bar.grid(row=len(self.stages) + 2, column=0, columnspan=3, sticky="w", pady=8)
         ttk.Button(bar, text="Re-check", command=lambda: self.start(self.check_all)).pack(side="left", padx=(0, 4))
         ttk.Button(bar, text="Stop", command=self.stop).pack(side="left")
+        ttk.Button(bar, text="Edit config", command=self.edit_config).pack(side="left", padx=(4, 0))
         self.show_overlay = tk.BooleanVar(value=not OVERLAY_OFF_FLAG.exists())
         ttk.Checkbutton(bar, text="Show overlay", variable=self.show_overlay,
                         command=self.toggle_overlay).pack(side="left", padx=(12, 0))
         self.show_terminals = tk.BooleanVar(value=False)
         ttk.Checkbutton(bar, text="Show terminals (debug)", variable=self.show_terminals).pack(side="left", padx=(12, 0))
+        self.show_logs = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bar, text="Show logs", variable=self.show_logs,
+                        command=self.toggle_logs).pack(side="left", padx=(12, 0))
 
         self.log_box = ScrolledText(frame, height=14, width=90, state="disabled", wrap="none")
         self.log_box.grid(row=len(self.stages) + 3, column=0, columnspan=3, sticky="nsew")
@@ -371,6 +378,37 @@ class Launcher:
             OVERLAY_OFF_FLAG.unlink(missing_ok=True)
         else:
             OVERLAY_OFF_FLAG.touch()
+
+    def toggle_logs(self):
+        """Hide or show the log pane; it keeps collecting while hidden. The
+        window resizes to fit, also after being resized by hand."""
+        if self.show_logs.get():
+            self.log_box.grid()
+        else:
+            self.log_box.grid_remove()
+        self.root.geometry("")
+
+    def edit_config(self):
+        """Open the configuration file in $VISUAL, $EDITOR or nano, inside
+        terminal.command. It is read once at startup, so changes apply after
+        a restart."""
+        editor = shlex.split(os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano")
+        terminal = [part.replace("{title}", "winstream config") for part in CFG.terminal]
+        try:
+            proc = subprocess.Popen(terminal + editor + [str(CFG.path)], stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                                    start_new_session=True)
+        except OSError as err:
+            self.log(f"can't open an editor: {err}")
+            return
+        self.log(f"editing {CFG.path} with {editor[0]}; restart the launcher to apply changes")
+
+        def report():
+            err = proc.stderr.read().strip()
+            if proc.wait() != 0:
+                self.log(f"editor terminal exited ({proc.returncode}): {err}")
+
+        threading.Thread(target=report, daemon=True).start()
 
     def set_buttons(self, state):
         for stage in self.stages + self.app_stages:
@@ -510,6 +548,9 @@ class Launcher:
             return any(line.split()[1:3] == [str(MOUNT), "fuse.sshfs"] for line in f)
 
     def mount(self):
+        if self.check_mounted():
+            self.log(f"{MOUNT} is already mounted")
+            return True
         MOUNT.mkdir(parents=True, exist_ok=True)
         # Fail fast instead of hanging if the host goes away.
         return self.sh(["sshfs", f"{HOST}:", str(MOUNT), "-o",
@@ -718,7 +759,7 @@ class AppDialog(tk.Toplevel):
             messagebox.showinfo("Browse", "No mount.path in the configuration: type the folder.", parent=self)
             return
         if not MOUNT.is_dir() or not any(MOUNT.iterdir()):
-            messagebox.showinfo("Browse", f"{MOUNT} isn't mounted: press \"Mount home\" first, "
+            messagebox.showinfo("Browse", f"{MOUNT} isn't mounted: press \"Mount host\" first, "
                                           "or type the folder.", parent=self)
             return
         current = self.vars["dir"].get().strip()
