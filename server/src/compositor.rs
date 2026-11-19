@@ -1041,7 +1041,11 @@ impl State {
         };
         self.focused_window = Some(window);
         let keyboard = self.seat.get_keyboard().expect("keyboard");
-        if again && reactivate {
+        let x11 = matches!(target, KbFocus::X11(_));
+        if again && x11 && keyboard.current_focus().as_ref() == Some(&target) {
+            return;
+        }
+        if again && reactivate && !x11 {
             keyboard.set_focus(self, None, serial);
         }
         keyboard.set_focus(self, Some(target), SERIAL_COUNTER.next_serial());
