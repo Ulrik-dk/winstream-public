@@ -23,6 +23,7 @@ pub struct RateControl {
     congested: bool,
     target: Duration,
     fps: f64,
+    pixels: f64,
     max_bpp: f64,
     min_bitrate: u32,
     latency: Duration,
@@ -44,6 +45,7 @@ impl RateControl {
             congested: false,
             target: settings.latency,
             fps,
+            pixels,
             max_bpp: settings.max_bpp,
             min_bitrate,
             latency: Duration::ZERO,
@@ -53,7 +55,9 @@ impl RateControl {
     pub fn resize(&mut self, width: u32, height: u32) {
         let pixels = width as f64 * height as f64 * self.fps;
         self.cap = ((pixels * self.max_bpp) as u32).max(self.min_bitrate);
-        self.bitrate = self.bitrate.min(self.cap);
+        let scaled = self.bitrate as f64 * pixels / self.pixels;
+        self.bitrate = (scaled as u32).clamp(self.min_bitrate, self.cap);
+        self.pixels = pixels;
     }
 
     pub fn bitrate(&self) -> u32 {
@@ -126,7 +130,9 @@ impl RateControl {
         let piled_up = self.backlog > self.target * MAX_BACKLOG;
         let factor = if measured && latency > self.target {
             (self.target.as_secs_f64() / latency.as_secs_f64()).clamp(MAX_DOWN, DOWN)
-        } else if shown < received || (piled_up && self.backlog >= before) {
+        } else if (shown < received && (!measured || latency > self.target.mul_f64(HOLD)))
+            || (piled_up && self.backlog >= before)
+        {
             DOWN
         } else if piled_up || (measured && latency > self.target.mul_f64(HOLD)) {
             return None;
@@ -178,6 +184,7 @@ mod tests {
         sent: u32,
         latencies: Vec<Duration>,
         reports_latency: bool,
+        skips: u32,
     }
 
     impl Link {
@@ -192,6 +199,7 @@ mod tests {
                 sent: 0,
                 latencies: Vec::new(),
                 reports_latency: false,
+                skips: 0,
             }
         }
 
@@ -238,7 +246,8 @@ mod tests {
                     } else {
                         Duration::ZERO
                     };
-                    rc.on_feedback(received, received, last, latency, self.now);
+                    let shown = received.saturating_sub(self.skips);
+                    rc.on_feedback(received, shown, last, latency, self.now);
                 }
                 rates.push(rc.bitrate());
             }
@@ -328,17 +337,54 @@ mod tests {
     }
 
     #[test]
-    fn resize_keeps_the_bitrate() {
+    fn resize_keeps_the_bits_per_pixel() {
         let mut rc = RateControl::new(2560, 1440, SETTINGS);
         let mut link = Link::new(15e6);
         link.run(&mut rc, 30.0);
         let before = rc.bitrate();
         rc.resize(1280, 1440);
-        assert_eq!(rc.bitrate(), before);
+        assert_eq!(rc.bitrate(), before / 2);
         rc.resize(2560, 1440);
-        assert_eq!(rc.bitrate(), before);
-        rc.resize(640, 360);
+        assert_eq!(rc.bitrate(), before / 2 * 2);
+        rc.resize(64, 64);
+        assert_eq!(rc.bitrate(), SETTINGS.min_bitrate);
+        rc.resize(2560, 1440);
         assert_eq!(rc.bitrate(), rc.cap);
+    }
+
+    #[test]
+    fn small_window_going_fullscreen_starts_high() {
+        let mut rc = RateControl::new(400, 400, SETTINGS);
+        let mut link = Link::new(500e6);
+        link.reports_latency = true;
+        link.run(&mut rc, 5.0);
+        rc.resize(2560, 1440);
+        link.run(&mut rc, 1.0);
+        let start = (2560.0 * 1440.0 * FPS * SETTINGS.start_bpp) as u32;
+        assert!(rc.bitrate() >= start, "{} Mbit/s", rc.bitrate() / 1_000_000);
+    }
+
+    #[test]
+    fn client_skips_under_target_do_not_step_down() {
+        let mut rc = RateControl::new(2560, 1440, SETTINGS);
+        let mut link = Link::new(500e6);
+        link.reports_latency = true;
+        link.skips = 1;
+        link.run(&mut rc, 10.0);
+        assert_eq!(rc.bitrate(), rc.cap);
+    }
+
+    #[test]
+    fn client_skips_near_target_step_down() {
+        let mut rc = RateControl::new(2560, 1440, SETTINGS);
+        let mut link = Link::new(500e6);
+        link.reports_latency = true;
+        link.decode_per_mbit = Duration::from_millis(4);
+        link.run(&mut rc, 20.0);
+        let before = rc.bitrate();
+        link.skips = 1;
+        link.run(&mut rc, 2.0);
+        assert!(rc.bitrate() < before);
     }
 
     #[test]
