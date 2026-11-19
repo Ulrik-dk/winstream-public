@@ -2,15 +2,29 @@
 
 [![Demo video: a game played remotely over winstream](https://i.ytimg.com/vi/N3yq892cZlA/hqdefault.jpg)](https://youtu.be/N3yq892cZlA)
 
+**Demo:** a game (Vintage Story, just the one I picked for the video) runs
+on a remote host with a GPU and is streamed to my laptop, where each of its
+windows is a native window on my own desktop.
+It's like remote desktop, but per window instead of a whole screen.
+
+Remote desktops tend to feel clunky: they nest one virtual desktop inside
+the client's desktop.
+
+X forwarding does give individual windows, but it doesn't use the host's GPU
+for rendering and encoding, so it's unsuitable for games.
+
+(My laptop couldn't record the stream at the frame rate it was displaying
+it, so this video shows the concept rather than the performance.)
+
 Window streaming for Linux apps (very relevant for games). Apps render on
 one machine's GPU (the **host**); each of their windows appears on another
 machine (the **client**) as a native window, streamed as low-latency video
 with sound. Keyboard, mouse and clipboard input go back to the host.
 
-Measured at 2560x1440, 60 fps, over 5 GHz Wi-Fi:
-- **~15 ms** from the app drawing a frame to the client showing it
-  (p95 ~25 ms); sound ~50 ms.
-- On a congested link, the bitrate drops to keep latency and frame rate.
+The stream has two targets: **60 fps** and **15 ms** from a frame being
+encoded to the client showing it (both configurable). The bitrate adjusts to
+meet them: it climbs while the link keeps up, and drops when latency goes
+over the target.
 
 Existing tools give either native windows or game-grade streaming, not both:
 - Game streamers and remote desktops (Moonlight, Steam Remote Play, Parsec,
@@ -33,8 +47,8 @@ Existing tools give either native windows or game-grade streaming, not both:
 | waypipe | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | 🟡 | ✅ |
 | **winstream** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-- **Client native windows**: each remote window is its own native window on
-  the client, and can be tiled and resized freely.
+- **Client native windows**: remote windows can be tiled and resized freely
+  on the client.
 - **Headless host**: no desktop environment, monitor or dummy plug.
 - **Host GPU**: apps render on the host's GPU, so 3D runs at full speed
   (not drawing commands sent over the wire).
@@ -64,7 +78,6 @@ Design notes:
   needs a newer driver than Pascal GPUs can run (580, NVENC API 13.0).
 - Stale frames are skipped on both sides (raw before encode, decoded before
   display), and the encoder stops while the link is stalled.
-  Recovery after a 2 s cut: ~1 s.
 - No explicit sync (`linux-drm-syncobj`) yet. Flicker or half-drawn frames
   in an app would point there.
 
