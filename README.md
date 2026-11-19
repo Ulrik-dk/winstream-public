@@ -1,5 +1,7 @@
 # winstream
 
+[![Demo video: a game played remotely over winstream](https://i.ytimg.com/vi/N3yq892cZlA/hqdefault.jpg)](https://youtu.be/N3yq892cZlA)
+
 Window streaming for Linux apps (very relevant for games). Apps render on
 one machine's GPU (the **host**); each of their windows appears on another
 machine (the **client**) as a native window, streamed as low-latency video
